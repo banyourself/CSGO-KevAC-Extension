@@ -1,0 +1,73 @@
+"Games"
+{
+    "#default"
+    {
+        "Signatures"
+        {
+            "ProcessListenEvents"
+            {
+                "library" "engine"
+                "linux"   "@_ZN11CBaseClient19ProcessListenEventsEP16CLC_ListenEvents"
+            }
+            "Signature"
+            {
+                "library" "engine"
+                // CBaseClient::ProcessListenEvents: walks the CLC listen-event mask
+                // and owns the engine's "ProcessListenEvents: game event %i not
+                // found" diagnostic. The build-specific bytes are wildcarded (\x2A):
+                // the [ebp-0x58] frame offset, the 0x64 stack size, and the absolute
+                // global operand of the following mov esi,[abs] all shift between
+                // CS:GO depot builds, and pinning them is what broke resolution on a
+                // server whose engine.so differs from the captured one. The opcode
+                // skeleton (push regs; lea ebx,[ebp-N]; sub esp,M; mov esi,[abs])
+                // still matches this function uniquely. If this ever fails, the
+                // extension's diagnostic-string anchor resolves it without any bytes.
+                "linux"   "\x55\x89\xE5\x57\x56\x53\x8D\x5D\x2A\x83\xEC\x2A\x8B\x35\x2A\x2A\x2A\x2A"
+                "windows" "\x55\x8B\xEC\x83\xE4\xF8\x83\xEC\x48\x56\x57\xC7\x44\x24\x0C\x00\x00\x00\x00"
+            }
+			"CVEngineServer::CreateFakeClient"
+			{
+				"library" "engine"
+				"linux" "\x55\x89\xE5\x53\x83\xEC\x0C\xFF\x75\x0C\x68"
+			}
+        }
+
+        // Full-update (skinchanger reapply) detection. Vtable index of
+        // CGameClient::UpdateAcknowledgedFramecount, called with tick -1 when a
+        // client requests a full update. Offsets verified against PTaH's public
+        // CS:GO gamedata (widely deployed on this build). A wrong index would hook
+        // the wrong virtual - validate on a throwaway server before going live.
+        "Offsets"
+        {
+			// PTaH-verified CS:GO offsets used by KevAC's optional SourcePawn
+			// full-update telemetry. The raw client pointer is resolved through
+			// CBaseServer::GetClient, so no engine byte signature is guessed.
+			"CBaseServer::GetClient"
+			{
+				"linux" "7"
+			}
+            "CGameClient::UpdateAcknowledgedFramecount"
+            {
+                "linux"   "55"
+            }
+			"CGameClient::ProcessListenEvents"
+			{
+				"linux" "11"
+			}
+        }
+		"Addresses"
+		{
+			"CBaseServer"
+			{
+				"linux"
+				{
+					// This is SourceMod's established CS:GO Linux route to the
+					// live server object. The immediate after push is the sv
+					// interface address, so it survives stripped engine symbols.
+					"signature" "CVEngineServer::CreateFakeClient"
+					"read" "11"
+				}
+			}
+		}
+    }
+}
